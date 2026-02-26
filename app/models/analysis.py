@@ -16,3 +16,8 @@ class AnalysisResponse(BaseModel):
     forks: int
     language: Optional[str]
     commit_count: int
+    total_files: int
+    python_files: int
+    javascript_files: int
+    readme_exists: bool
+    tests_exist: bool

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.models.analysis import AnalysisRequest, AnalysisResponse
 from app.services.github_service import GitHubService
+from app.analyzers import RepositoryAnalyzer
 
 router = APIRouter()
 
@@ -10,10 +11,17 @@ def get_github_service() -> GitHubService:
     """
     return GitHubService()
 
+def get_repository_analyzer() -> RepositoryAnalyzer:
+    """
+    Dependency provider for RepositoryAnalyzer.
+    """
+    return RepositoryAnalyzer()
+
 @router.post("/analyze", response_model=AnalysisResponse)
 async def analyze_repository(
     request: AnalysisRequest,
-    github_service: GitHubService = Depends(get_github_service)
+    github_service: GitHubService = Depends(get_github_service),
+    repo_analyzer: RepositoryAnalyzer = Depends(get_repository_analyzer)
 ) -> AnalysisResponse:
     """
     Analyzes a GitHub repository by its URL and returns metadata.
@@ -22,13 +30,19 @@ async def analyze_repository(
     """
     try:
         metadata = github_service.get_repository_metadata(request.repo_url)
+        structural_metrics = repo_analyzer.analyze(request.repo_url)
         
         return AnalysisResponse(
             name=metadata["repository_name"],
             stars=metadata["stars_count"],
             forks=metadata["forks_count"],
             language=metadata["primary_language"],
-            commit_count=metadata["total_commit_count"]
+            commit_count=metadata["total_commit_count"],
+            total_files=structural_metrics["total_files"],
+            python_files=structural_metrics["python_files"],
+            javascript_files=structural_metrics["javascript_files"],
+            readme_exists=structural_metrics["readme_exists"],
+            tests_exist=structural_metrics["tests_exist"]
         )
         
     except ValueError as e:
