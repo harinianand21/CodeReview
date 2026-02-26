@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # CORS Configuration
     ALLOWED_HOSTS: List[str] = ["*"]
 
+    # GitHub Configuration
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+
     @validator("ALLOWED_HOSTS", pre=True)
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
         if isinstance(v, str) and not v.startswith("["):
