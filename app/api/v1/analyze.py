@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.models.analysis import AnalysisRequest, AnalysisResponse
 from app.services.github_service import GitHubService
-from app.analyzers import RepositoryAnalyzer
+from app.analyzers import RepositoryAnalyzer, ComplexityAnalyzer
 
 router = APIRouter()
 
@@ -17,11 +17,18 @@ def get_repository_analyzer() -> RepositoryAnalyzer:
     """
     return RepositoryAnalyzer()
 
+def get_complexity_analyzer() -> ComplexityAnalyzer:
+    """
+    Dependency provider for ComplexityAnalyzer.
+    """
+    return ComplexityAnalyzer()
+
 @router.post("/analyze", response_model=AnalysisResponse)
 async def analyze_repository(
     request: AnalysisRequest,
     github_service: GitHubService = Depends(get_github_service),
-    repo_analyzer: RepositoryAnalyzer = Depends(get_repository_analyzer)
+    repo_analyzer: RepositoryAnalyzer = Depends(get_repository_analyzer),
+    complexity_analyzer: ComplexityAnalyzer = Depends(get_complexity_analyzer)
 ) -> AnalysisResponse:
     """
     Analyzes a GitHub repository by its URL and returns metadata.
@@ -30,7 +37,10 @@ async def analyze_repository(
     """
     try:
         metadata = github_service.get_repository_metadata(request.repo_url)
-        structural_metrics = repo_analyzer.analyze(request.repo_url)
+        analysis_results = repo_analyzer.analyze(
+            request.repo_url, 
+            complexity_analyzer=complexity_analyzer
+        )
         
         return AnalysisResponse(
             name=metadata["repository_name"],
@@ -38,11 +48,14 @@ async def analyze_repository(
             forks=metadata["forks_count"],
             language=metadata["primary_language"],
             commit_count=metadata["total_commit_count"],
-            total_files=structural_metrics["total_files"],
-            python_files=structural_metrics["python_files"],
-            javascript_files=structural_metrics["javascript_files"],
-            readme_exists=structural_metrics["readme_exists"],
-            tests_exist=structural_metrics["tests_exist"]
+            total_files=analysis_results["total_files"],
+            python_files=analysis_results["python_files"],
+            javascript_files=analysis_results["javascript_files"],
+            readme_exists=analysis_results["readme_exists"],
+            tests_exist=analysis_results["tests_exist"],
+            average_complexity=analysis_results["average_complexity"],
+            max_complexity=analysis_results["max_complexity"],
+            high_complexity_functions=analysis_results["high_complexity_functions"]
         )
         
     except ValueError as e:

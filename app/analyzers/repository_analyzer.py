@@ -49,7 +49,7 @@ class RepositoryAnalyzer:
             logger.error(f"Error calculating directory size: {e}")
         return total_size
 
-    def analyze(self, repo_url: str) -> Dict[str, Any]:
+    def analyze(self, repo_url: str, complexity_analyzer: Any = None) -> Dict[str, Any]:
         """
         Clones a repository, analyzes its structure, and returns metrics.
         
@@ -58,25 +58,20 @@ class RepositoryAnalyzer:
         
         Args:
             repo_url (str): The HTTPS URL of the GitHub repository.
+            complexity_analyzer (Any): Optional instance of ComplexityAnalyzer.
             
         Returns:
-            Dict[str, Any]: A dictionary containing:
-                - total_files (int): Total files excluding excluded directories.
-                - python_files (int): Count of .py files.
-                - javascript_files (int): Count of .js files.
-                - readme_exists (bool): Whether a README file was found.
-                - tests_exist (bool): Whether a tests directory was found.
-                
-        Raises:
-            ValueError: If the repository exceeds size limits or fails to clone.
-            RuntimeError: If analysis fails unexpectedly.
+            Dict[str, Any]: A dictionary containing structural and complexity metrics.
         """
         results = {
             "total_files": 0,
             "python_files": 0,
             "javascript_files": 0,
             "readme_exists": False,
-            "tests_exist": False
+            "tests_exist": False,
+            "average_complexity": 0.0,
+            "max_complexity": 0,
+            "high_complexity_functions": 0
         }
 
         # TemporaryDirectory ensures cleanup even if exceptions occur
@@ -84,18 +79,17 @@ class RepositoryAnalyzer:
             temp_path = Path(temp_dir)
             
             try:
-                # Clone the repository using a shallow clone to minimize download time and space
-                # subprocess.run is safer than os.system
+                # Clone the repository
                 subprocess.run(
                     ["git", "clone", "--depth", "1", repo_url, "."],
                     cwd=temp_dir,
                     check=True,
                     capture_output=True,
                     text=True,
-                    timeout=300  # 5-minute timeout for cloning
+                    timeout=300
                 )
                 
-                # Enforce security constraint: repository size limit
+                # Enforce security constraint
                 repo_size_bytes = self._get_dir_size(temp_path)
                 if repo_size_bytes > self.max_repo_size_mb * 1024 * 1024:
                     raise ValueError(
@@ -103,22 +97,21 @@ class RepositoryAnalyzer:
                         f"exceeds the limit of {self.max_repo_size_mb} MB."
                     )
                 
-                # Determine core repository metrics
+                # Structural analysis
                 self._run_structural_analysis(temp_path, results)
+
+                # Complexity analysis (if provided)
+                if complexity_analyzer:
+                    comp_results = complexity_analyzer.analyze(str(temp_path))
+                    results.update(comp_results)
                 
             except subprocess.CalledProcessError as e:
                 error_msg = e.stderr.strip().split('\n')[-1] if e.stderr else "Unknown git error"
-                logger.error(f"Clone failed for {repo_url}: {error_msg}")
+                logger.error(f"Clone failed: {error_msg}")
                 raise ValueError(f"Failed to clone repository: {error_msg}")
-            except subprocess.TimeoutExpired:
-                logger.error(f"Clone timed out for {repo_url}")
-                raise ValueError("Repository cloning timed out.")
-            except ValueError:
-                # Re-raise size limit or specific validation errors
-                raise
             except Exception as e:
-                logger.error(f"Unexpected error analyzing {repo_url}: {str(e)}")
-                raise RuntimeError(f"An error occurred during repository analysis: {str(e)}")
+                logger.error(f"Unexpected error: {str(e)}")
+                raise
 
         return results
 

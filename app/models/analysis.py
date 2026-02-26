@@ -21,3 +21,6 @@ class AnalysisResponse(BaseModel):
     javascript_files: int
     readme_exists: bool
     tests_exist: bool
+    average_complexity: float
+    max_complexity: int
+    high_complexity_functions: int
