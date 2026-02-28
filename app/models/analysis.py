@@ -24,3 +24,5 @@ class AnalysisResponse(BaseModel):
     average_complexity: float
     max_complexity: int
     high_complexity_functions: int
+    engineering_score: float
+    grade: str
